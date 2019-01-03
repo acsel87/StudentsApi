@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using Student.Models;
+using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Linq;
@@ -20,6 +22,11 @@ namespace Student.DataAccess
         public static void SetConnection(IDataConnection dataConnection)
         {
             Connection = dataConnection;
+        }
+
+        public static string ResponseSerializer<T>(ResponseModel<T> responseModel)
+        {
+            return JsonConvert.SerializeObject(responseModel);
         }
     }
 }

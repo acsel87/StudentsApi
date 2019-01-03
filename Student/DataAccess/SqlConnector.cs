@@ -15,6 +15,26 @@ namespace Student.DataAccess
         private const string writeAccess = "WriteAccess";
         private const string userAccess = "UserAccess";
 
+        public ResponseModel<List<GradeModel>> GetGrades(int studentID, int teacherID)
+        {
+            throw new NotImplementedException();
+        }
+
+        public ResponseModel<int> GetStudentRating(int studentID, int teacherID)
+        {
+            throw new NotImplementedException();
+        }
+
+        public ResponseModel<List<StudentModel>> GetStudents()
+        {
+            throw new NotImplementedException();
+        }
+
+        public ResponseModel<List<TeacherModel>> GetTeachers()
+        {
+            throw new NotImplementedException();
+        }
+
         public string InsertAccessToken(int userID, string accessToken)
         {
             throw new NotImplementedException();

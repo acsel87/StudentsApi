@@ -23,5 +23,17 @@ namespace Student
 
         [OperationContract]
         string ResetPassword();
+
+        [OperationContract]
+        string GetStudents();
+
+        [OperationContract]
+        string GetTeachers();
+
+        [OperationContract]
+        string GetGrades(int studentID, int teacherID);
+
+        [OperationContract]
+        string GetStudentRating(int studentID, int teacherID);
     }
 }

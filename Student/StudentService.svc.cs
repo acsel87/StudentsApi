@@ -39,5 +39,25 @@ namespace Student
         {   
             return GlobalConfig.Connection.SignUpUser(username, password, accountType);
         }
+
+        public string GetStudents()
+        {
+            return GlobalConfig.ResponseSerializer(GlobalConfig.Connection.GetStudents());
+        }
+
+        public string GetTeachers()
+        {
+            return GlobalConfig.ResponseSerializer(GlobalConfig.Connection.GetTeachers());
+        }
+
+        public string GetGrades(int studentID, int teacherID)
+        {
+            return GlobalConfig.ResponseSerializer(GlobalConfig.Connection.GetGrades(studentID, teacherID));
+        }
+
+        public string GetStudentRating(int studentID, int teacherID)
+        {
+            return GlobalConfig.ResponseSerializer(GlobalConfig.Connection.GetStudentRating(studentID, teacherID));
+        }
     }
 }

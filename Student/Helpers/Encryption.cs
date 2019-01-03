@@ -9,6 +9,7 @@ using Student.DataAccess;
 using System.Text;
 using JWT.Builder;
 using JWT.Algorithms;
+using Student.Models;
 
 namespace Student.Helpers
 {
@@ -67,7 +68,7 @@ namespace Student.Helpers
             }
 
             return null;
-        }    
+        }       
 
         // for other hash algorithms against timing attack
         private bool CompareBytes(byte[] a, byte[] b)
