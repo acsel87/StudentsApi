@@ -1,19 +1,13 @@
-﻿using Scrypt;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Security.Cryptography;
-using System.Web;
-using Newtonsoft.Json;
-using Student.DataAccess;
-using System.Text;
+﻿using JWT.Algorithms;
 using JWT.Builder;
-using JWT.Algorithms;
-using Student.Models;
+using Scrypt;
+using Student.DataAccess;
+using System;
+using System.Security.Cryptography;
 
 namespace Student.Helpers
 {
-    public class Encryption
+    public class Encryptor
     {
         // todo - is it always 103 for scrypt?
         private const int hashLength = 103;
@@ -63,12 +57,11 @@ namespace Student.Helpers
                           .WithSecret(GlobalConfig.secretKey)
                           .AddClaim("sub", username)
                           .AddClaim("exp", DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds())
-                          .AddClaim("asd", "12345")
                           .Build(); ;
             }
 
             return null;
-        }       
+        }
 
         // for other hash algorithms against timing attack
         private bool CompareBytes(byte[] a, byte[] b)

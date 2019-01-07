@@ -3,10 +3,6 @@ using Student.Helpers;
 using Student.Models;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.Serialization;
-using System.ServiceModel;
-using System.Text;
 
 namespace Student
 {
@@ -25,9 +21,13 @@ namespace Student
             return "Connected to service";
         }
 
-        public ResponseModel<UserModel> Login(string username, string password)
+        public string Login(string username, string password)
         {
-            return GlobalConfig.Connection.LoginUser(username, password);
+            Authenticator authenticator = new Authenticator();
+
+            ResponseModel<UserModel> responseModel = GlobalConfig.Connection.LoginUser(username, password);
+
+            return authenticator.ResponseSerializer(responseModel);
         }
 
         public string ResetPassword()
@@ -35,29 +35,131 @@ namespace Student
             throw new NotImplementedException();
         }
 
-        public ResponseModel<string> SignUp(string username, string password, string accountType)
-        {   
-            return GlobalConfig.Connection.SignUpUser(username, password, accountType);
+        public string SignUp(string username, string password, int accountTypeID)
+        {
+            Authenticator authenticator = new Authenticator();
+
+            ResponseModel<string> responseModel = GlobalConfig.Connection.SignUpUser(username, password, accountTypeID);
+
+            return authenticator.ResponseSerializer(responseModel);
         }
 
-        public string GetStudents()
+        public string GetAccountTypes()
         {
-            return GlobalConfig.ResponseSerializer(GlobalConfig.Connection.GetStudents());
+            Authenticator authenticator = new Authenticator();
+
+            ResponseModel<List<KeyValuePair<int, string>>> responseModel = GlobalConfig.Connection.GetAccountTypes();
+
+            return authenticator.ResponseSerializer(responseModel);
         }
 
-        public string GetTeachers()
+        public string GetStudents(string accessToken)
         {
-            return GlobalConfig.ResponseSerializer(GlobalConfig.Connection.GetTeachers());
+            Authenticator authenticator = new Authenticator();
+
+            ResponseModel<List<StudentModel>> responseModel = new ResponseModel<List<StudentModel>>();
+
+            string message = string.Empty;
+
+            if (authenticator.VerifyToken(accessToken, ref message))
+            {
+                responseModel = GlobalConfig.Connection.GetStudents();                
+            }
+            else
+            {
+                responseModel.ErrorMessage = message;
+            }
+
+            return authenticator.ResponseSerializer(responseModel);
         }
 
-        public string GetGrades(int studentID, int teacherID)
+        public string GetTeachers(string accessToken)
         {
-            return GlobalConfig.ResponseSerializer(GlobalConfig.Connection.GetGrades(studentID, teacherID));
+            Authenticator authenticator = new Authenticator();
+
+            ResponseModel<List<TeacherModel>> responseModel = new ResponseModel<List<TeacherModel>>();
+
+            string message = string.Empty;
+
+            if (authenticator.VerifyToken(accessToken, ref message))
+            {
+                responseModel = GlobalConfig.Connection.GetTeachers();
+            }
+            else
+            {
+                responseModel.ErrorMessage = message;
+            }
+
+            return authenticator.ResponseSerializer(responseModel);
         }
 
-        public string GetStudentRating(int studentID, int teacherID)
+        public string GetGrades(int studentID, int teacherID, string accessToken)
         {
-            return GlobalConfig.ResponseSerializer(GlobalConfig.Connection.GetStudentRating(studentID, teacherID));
+            Authenticator authenticator = new Authenticator();
+
+            ResponseModel<List<GradeModel>> responseModel = new ResponseModel<List<GradeModel>>();
+
+            string message = string.Empty;
+
+            if (authenticator.VerifyToken(accessToken, ref message))
+            {
+                responseModel = GlobalConfig.Connection.GetGrades(studentID, teacherID);                
+            }
+            else
+            {
+                responseModel.ErrorMessage = message;
+                responseModel.ErrorAction = "[LogOut]";
+            }
+
+            return authenticator.ResponseSerializer(responseModel);
+        }
+
+        public string GetStudentRating(int studentID, int teacherID, string accessToken)
+        {
+            Authenticator authenticator = new Authenticator();
+
+            ResponseModel<int> responseModel = new ResponseModel<int>();
+
+            string message = string.Empty;
+
+            if (authenticator.VerifyToken(accessToken, ref message))
+            {
+                responseModel = GlobalConfig.Connection.GetStudentRating(studentID, teacherID);                
+            }
+            else
+            {
+                responseModel.ErrorMessage = message;
+                responseModel.ErrorAction = "[LogOut]";
+            }
+
+            return authenticator.ResponseSerializer(responseModel);
+        }
+
+        public string RateTeacher(int studentID, int teacherID, int rate, string accessToken)
+        {
+            Authenticator authenticator = new Authenticator();
+
+            ResponseModel<string> responseModel = new ResponseModel<string>();
+
+            string message = string.Empty;
+
+            if (authenticator.VerifyToken(accessToken, ref message))
+            {
+                if (authenticator.CheckActivity(message, "RateTeacher")) // check activity
+                {
+                    responseModel = GlobalConfig.Connection.RateTeacher(studentID, teacherID, rate);
+                }
+                else // account type not mapped to activity
+                {
+                    responseModel.ErrorMessage = "You're not allowed, bad kitty !";
+                }
+            }
+            else
+            {
+                responseModel.ErrorMessage = message;                
+            }
+
+            return authenticator.ResponseSerializer(responseModel);
         }
     }
 }

@@ -5,7 +5,6 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
-using System.Web;
 
 namespace Student.DataAccess
 {
@@ -14,6 +13,11 @@ namespace Student.DataAccess
         private const string readAccess = "ReadAccess";
         private const string writeAccess = "WriteAccess";
         private const string userAccess = "UserAccess";
+
+        public ResponseModel<List<KeyValuePair<int, string>>> GetAccountTypes()
+        {
+            throw new NotImplementedException();
+        }
 
         public ResponseModel<List<GradeModel>> GetGrades(int studentID, int teacherID)
         {
@@ -45,15 +49,20 @@ namespace Student.DataAccess
             throw new NotImplementedException();
         }
 
-        public ResponseModel<string> SignUpUser(string username, string password, string accountType)
+        public ResponseModel<string> RateTeacher(int studentID, int teacherID, int rate)
         {
-            ResponseModel<string> responseModel = new ResponseModel<string>() { Model = "" };
+            throw new NotImplementedException();
+        }
+
+        public ResponseModel<string> SignUpUser(string username, string password, int accountTypeID)
+        {
+            ResponseModel<string> responseModel = new ResponseModel<string>() { Model = string.Empty };
 
             try
             {
                 if (!UsernameAlreadyExists(username))
                 {
-                    Encryption encryption = new Encryption();
+                    Encryptor encryption = new Encryptor();
                     string passwordHash = encryption.GenerateHash(password, null);
 
                     using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(writeAccess)))
@@ -61,7 +70,7 @@ namespace Student.DataAccess
                         var p = new DynamicParameters();
                         p.Add("@Username", username);
                         p.Add("@Password", passwordHash);
-                        p.Add("@AccountType", accountType);
+                        p.Add("@AccountTypeID", accountTypeID);
 
                         connection.Execute("dbo.spUser_Insert", p, commandType: CommandType.StoredProcedure);
 

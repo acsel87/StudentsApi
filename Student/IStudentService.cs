@@ -1,10 +1,5 @@
 ﻿using Student.Models;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.Serialization;
 using System.ServiceModel;
-using System.Text;
 
 namespace Student
 {
@@ -16,24 +11,30 @@ namespace Student
         string CheckConnection();
 
         [OperationContract]
-        ResponseModel<string> SignUp(string username, string password, string accountType);
+        string GetAccountTypes();
 
         [OperationContract]
-        ResponseModel<UserModel> Login(string username, string password);
+        string SignUp(string username, string password, int accountTypeID);
+
+        [OperationContract]
+        string Login(string username, string password);
 
         [OperationContract]
         string ResetPassword();
 
         [OperationContract]
-        string GetStudents();
+        string GetStudents(string accessToken);
 
         [OperationContract]
-        string GetTeachers();
+        string GetTeachers(string accessToken);
 
         [OperationContract]
-        string GetGrades(int studentID, int teacherID);
+        string GetGrades(int studentID, int teacherID, string accessToken);
 
         [OperationContract]
-        string GetStudentRating(int studentID, int teacherID);
+        string GetStudentRating(int studentID, int teacherID, string accessToken);
+
+        [OperationContract]
+        string RateTeacher(int studentID, int teacherID, int rate, string accessToken);
     }
 }
