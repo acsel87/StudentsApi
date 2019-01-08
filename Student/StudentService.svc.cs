@@ -135,7 +135,7 @@ namespace Student
             return authenticator.ResponseSerializer(responseModel);
         }
 
-        public string RateTeacher(int studentID, int teacherID, int rate, string accessToken)
+        public string RateTeacher(int teacherID, int rate, string accessToken)
         {
             Authenticator authenticator = new Authenticator();
 
@@ -143,20 +143,43 @@ namespace Student
 
             string message = string.Empty;
 
-            if (authenticator.VerifyToken(accessToken, ref message))
+            if (authenticator.VerifyToken(accessToken, ref message) &&
+                GlobalConfig.Connection.CheckActivity(message, "RateTeacher", ref message))
             {
-                if (authenticator.CheckActivity(message, "RateTeacher")) // check activity
-                {
-                    responseModel = GlobalConfig.Connection.RateTeacher(studentID, teacherID, rate);
-                }
-                else // account type not mapped to activity
-                {
-                    responseModel.ErrorMessage = "You're not allowed, bad kitty !";
-                }
+                responseModel = GlobalConfig.Connection.RateTeacher(accessToken, teacherID, rate);               
             }
             else
             {
                 responseModel.ErrorMessage = message;                
+            }
+
+            return authenticator.ResponseSerializer(responseModel);
+        }
+
+        public string ModifyGrades(bool isNewGrade, GradeModel gradeModel, string accessToken)
+        {
+            Authenticator authenticator = new Authenticator();
+
+            ResponseModel<string> responseModel = new ResponseModel<string>();
+
+            string message = string.Empty;
+            string activity = isNewGrade ? "AddGrade":"EditGrade";
+
+            if (authenticator.VerifyToken(accessToken, ref message) &&
+                GlobalConfig.Connection.CheckActivity(message, activity, ref message))
+            {
+                if (isNewGrade)
+                {
+                    responseModel = GlobalConfig.Connection.AddGrade(gradeModel, accessToken);
+                }
+                else
+                {
+                    responseModel = GlobalConfig.Connection.EditGrade(gradeModel);
+                }
+            }
+            else
+            {
+                responseModel.ErrorMessage = message;
             }
 
             return authenticator.ResponseSerializer(responseModel);

@@ -44,12 +44,17 @@ namespace Student.DataAccess
             throw new NotImplementedException();
         }
 
+        public bool CheckActivity(string username, string activity, ref string errorMessage)
+        {
+            throw new NotImplementedException();
+        }
+
         public ResponseModel<UserModel> LoginUser(string username, string password)
         {
             throw new NotImplementedException();
         }
 
-        public ResponseModel<string> RateTeacher(int studentID, int teacherID, int rate)
+        public ResponseModel<string> RateTeacher(string accessToken, int teacherID, int rate)
         {
             throw new NotImplementedException();
         }
@@ -106,6 +111,16 @@ namespace Student.DataAccess
             }
 
             return isExist;
+        }
+
+        public ResponseModel<string> AddGrade(GradeModel gradeModel, string accessToken)
+        {
+            throw new NotImplementedException();
+        }
+
+        public ResponseModel<string> EditGrade(GradeModel gradeModel)
+        {
+            throw new NotImplementedException();
         }
 
         //public Dictionary<int, string> GetCustomer_All_Name()

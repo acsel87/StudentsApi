@@ -35,6 +35,9 @@ namespace Student
         string GetStudentRating(int studentID, int teacherID, string accessToken);
 
         [OperationContract]
-        string RateTeacher(int studentID, int teacherID, int rate, string accessToken);
+        string RateTeacher(int teacherID, int rate, string accessToken);
+
+        [OperationContract]
+        string ModifyGrades(bool isNewGrade, GradeModel gradeModel, string accessToken);
     }
 }

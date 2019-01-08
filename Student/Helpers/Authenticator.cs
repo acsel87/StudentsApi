@@ -37,11 +37,5 @@ namespace Student.Helpers
                 return false;
             }
         }
-
-        public bool CheckActivity(string username, string activity)
-        {
-            // check if user accounty type is mapped to activity
-            return true;
-        }
     }
 }
