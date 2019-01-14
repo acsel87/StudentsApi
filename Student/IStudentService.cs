@@ -20,7 +20,13 @@ namespace Student
         string Login(string username, string password);
 
         [OperationContract]
-        string ResetPassword();
+        string ResetPassword(string username);
+
+        [OperationContract]
+        string ActivateLink(string username, string token);
+
+        [OperationContract]
+        string ConfirmReset(string userToken, string newPassword);
 
         [OperationContract]
         string GetStudents(string accessToken);
@@ -39,5 +45,6 @@ namespace Student
 
         [OperationContract]
         string ModifyGrades(bool isNewGrade, GradeModel gradeModel, string accessToken);
+        
     }
 }

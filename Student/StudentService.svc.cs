@@ -13,7 +13,7 @@ namespace Student
         public StudentService()
         {
             GlobalConfig.SetConnection(new CsvConnector());
-           // GlobalConfig.SetConnection(new SqlConnector());
+            //GlobalConfig.SetConnection(new SqlConnector());
         }
 
         public string CheckConnection()
@@ -30,9 +30,31 @@ namespace Student
             return authenticator.ResponseSerializer(responseModel);
         }
 
-        public string ResetPassword()
+        public string ResetPassword(string username)
         {
-            throw new NotImplementedException();
+            Authenticator authenticator = new Authenticator();
+
+            ResponseModel<string[]> responseModel = GlobalConfig.Connection.ResetPassword_SendInstructions(username);
+
+            return authenticator.ResponseSerializer(responseModel);
+        }
+
+        public string ActivateLink(string username, string token)
+        {
+            Authenticator authenticator = new Authenticator();
+
+            ResponseModel<string> responseModel = GlobalConfig.Connection.ActivateTokenLink(username, token);
+
+            return authenticator.ResponseSerializer(responseModel);
+        }
+
+        public string ConfirmReset(string userToken, string newPassword)
+        {
+            Authenticator authenticator = new Authenticator();
+
+            ResponseModel<string> responseModel = GlobalConfig.Connection.ConfirmPasswordReset(userToken, newPassword);
+
+            return authenticator.ResponseSerializer(responseModel);
         }
 
         public string SignUp(string username, string password, int accountTypeID)
@@ -143,14 +165,21 @@ namespace Student
 
             string message = string.Empty;
 
-            if (authenticator.VerifyToken(accessToken, ref message) &&
-                GlobalConfig.Connection.CheckActivity(message, "RateTeacher", ref message))
+            if (authenticator.VerifyToken(accessToken, ref message))
             {
-                responseModel = GlobalConfig.Connection.RateTeacher(accessToken, teacherID, rate);               
+                if (GlobalConfig.Connection.CheckActivity(message, "RateTeacher", ref message))
+                {
+                    responseModel = GlobalConfig.Connection.RateTeacher(accessToken, teacherID, rate);
+                }
+                else
+                {
+                    responseModel.ErrorMessage = message;
+                }
             }
             else
             {
-                responseModel.ErrorMessage = message;                
+                responseModel.ErrorMessage = message;
+                responseModel.ErrorAction = "[LogOut]";
             }
 
             return authenticator.ResponseSerializer(responseModel);
@@ -165,21 +194,28 @@ namespace Student
             string message = string.Empty;
             string activity = isNewGrade ? "AddGrade":"EditGrade";
 
-            if (authenticator.VerifyToken(accessToken, ref message) &&
-                GlobalConfig.Connection.CheckActivity(message, activity, ref message))
+            if (authenticator.VerifyToken(accessToken, ref message) )
             {
-                if (isNewGrade)
+                if (GlobalConfig.Connection.CheckActivity(message, activity, ref message))
                 {
-                    responseModel = GlobalConfig.Connection.AddGrade(gradeModel, accessToken);
+                    if (isNewGrade)
+                    {
+                        responseModel = GlobalConfig.Connection.AddGrade(gradeModel, accessToken);
+                    }
+                    else
+                    {
+                        responseModel = GlobalConfig.Connection.EditGrade(gradeModel);
+                    }
                 }
                 else
                 {
-                    responseModel = GlobalConfig.Connection.EditGrade(gradeModel);
+                    responseModel.ErrorMessage = message;
                 }
             }
             else
             {
                 responseModel.ErrorMessage = message;
+                responseModel.ErrorAction = "[LogOut]";
             }
 
             return authenticator.ResponseSerializer(responseModel);

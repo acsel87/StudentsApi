@@ -17,7 +17,10 @@ namespace Student.DataAccess
         ResponseModel<string> AddGrade(GradeModel gradeModel, string accessToken);
         ResponseModel<string> EditGrade(GradeModel gradeModel);
 
-        string InsertAccessToken(int userID, string accessToken);
         bool CheckActivity(string username, string activity, ref string errorMessage);
+
+        ResponseModel<string[]> ResetPassword_SendInstructions(string username);
+        ResponseModel<string> ActivateTokenLink(string username, string token);
+        ResponseModel<string> ConfirmPasswordReset(string userToken, string newPassword);
     }
 }

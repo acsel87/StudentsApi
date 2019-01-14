@@ -10,53 +10,206 @@ namespace Student.DataAccess
 {
     public class SqlConnector : IDataConnection
     {
-        private const string readAccess = "ReadAccess";
-        private const string writeAccess = "WriteAccess";
+        private const string loginAccess = "LoginAccess";
+        private const string signUpAccess = "SignUpAccess";
+        private const string resetAccess = "ResetAccess";
         private const string userAccess = "UserAccess";
 
         public ResponseModel<List<KeyValuePair<int, string>>> GetAccountTypes()
         {
-            throw new NotImplementedException();
+            ResponseModel<List<KeyValuePair<int, string>>> responseModel = new ResponseModel<List<KeyValuePair<int, string>>>();
+
+            List<KeyValuePair<int, string>> accountTypes = new List<KeyValuePair<int, string>>();
+
+            using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(signUpAccess)))
+            {
+                accountTypes = connection.Query<KeyValuePair<int, string>>("dbo.spAccountTypes_Get", commandType: CommandType.StoredProcedure).ToList();
+
+                responseModel.IsSuccess = true;
+                responseModel.Model = accountTypes;
+            }
+
+            return responseModel;
         }
 
         public ResponseModel<List<GradeModel>> GetGrades(int studentID, int teacherID)
         {
-            throw new NotImplementedException();
+            ResponseModel<List<GradeModel>> responseModel = new ResponseModel<List<GradeModel>>();
+
+            List<GradeModel> grades = new List<GradeModel>();
+
+            try
+            {
+                using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(userAccess)))
+                {
+
+                    var p = new DynamicParameters();
+                    p.Add("@StudentID", studentID);
+                    p.Add("@TeacherID", teacherID);
+
+                    grades = connection.Query<GradeModel>("dbo.spGrades_GetByStudentTeacher", p, commandType: CommandType.StoredProcedure).ToList();
+
+                    responseModel.Model = grades;
+                    responseModel.IsSuccess = true;
+                }
+            }
+            catch (Exception e)
+            {
+                responseModel.ErrorMessage = e.Message;
+            }
+
+            return responseModel;
         }
 
         public ResponseModel<int> GetStudentRating(int studentID, int teacherID)
         {
-            throw new NotImplementedException();
+            ResponseModel<int> responseModel = new ResponseModel<int>();
+
+            try
+            {
+                using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(userAccess)))
+                {
+                    var p = new DynamicParameters();
+                    p.Add("@StudentID", studentID);
+                    p.Add("@TeacherID", teacherID);
+
+                    responseModel.Model = connection.Query<int>("dbo.spStudentRating_Get", p, commandType: CommandType.StoredProcedure).FirstOrDefault();
+
+                    responseModel.IsSuccess = true;
+                }
+            }
+            catch (Exception e)
+            {
+                responseModel.ErrorMessage = e.Message;
+            }
+
+            return responseModel;
         }
 
         public ResponseModel<List<StudentModel>> GetStudents()
         {
-            throw new NotImplementedException();
+            ResponseModel<List<StudentModel>> responseModel = new ResponseModel<List<StudentModel>>();
+
+            List<StudentModel> students = new List<StudentModel>();
+
+            try
+            {
+                using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(userAccess)))
+                {
+                    students = connection.Query<StudentModel>("dbo.spStudents_GetAll", commandType: CommandType.StoredProcedure).ToList();
+
+                    responseModel.Model = students;
+                    responseModel.IsSuccess = true;
+                }
+            }
+            catch (Exception e)
+            {
+                responseModel.ErrorMessage = e.Message;
+            }
+
+            return responseModel;
         }
 
         public ResponseModel<List<TeacherModel>> GetTeachers()
         {
-            throw new NotImplementedException();
-        }
+            ResponseModel<List<TeacherModel>> responseModel = new ResponseModel<List<TeacherModel>>();
 
-        public string InsertAccessToken(int userID, string accessToken)
-        {
-            throw new NotImplementedException();
-        }
+            List<TeacherModel> teachers = new List<TeacherModel>();
 
-        public bool CheckActivity(string username, string activity, ref string errorMessage)
-        {
-            throw new NotImplementedException();
+            try
+            {
+                using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(userAccess)))
+                {
+                    teachers = connection.Query<TeacherModel>("dbo.spTeachers_GetAll", commandType: CommandType.StoredProcedure).ToList();
+
+                    responseModel.Model = teachers;
+                    responseModel.IsSuccess = true;
+                }
+            }
+            catch (Exception e)
+            {
+                responseModel.ErrorMessage = e.Message;
+            }
+
+            return responseModel;
         }
 
         public ResponseModel<UserModel> LoginUser(string username, string password)
         {
-            throw new NotImplementedException();
+            ResponseModel<UserModel> responseModel = new ResponseModel<UserModel>();
+
+            try
+            {
+                using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(loginAccess)))
+                {
+                    var p = new DynamicParameters();
+                    p.Add("@Username", username);
+
+                    KeyValuePair<int,string> userID_Pass = connection.Query<KeyValuePair<int, string>>("dbo.spUser_GetID_Pass", p, commandType: CommandType.StoredProcedure).FirstOrDefault();
+                    
+                    if (userID_Pass.Key > 0 && !string.IsNullOrEmpty(userID_Pass.Value))
+                    {
+                        Encryptor encryption = new Encryptor();
+                        responseModel.IsSuccess = encryption.IsHashValid(password, userID_Pass.Value);
+
+                        if (responseModel.IsSuccess)
+                        {
+                            UserModel tempModel = new UserModel();
+
+                            string token = encryption.CreateAccessToken(username); // maybe better on client side?
+
+                            InsertAccessToken(Convert.ToInt32(userID_Pass.Key), token);
+
+                            responseModel.ErrorMessage = "Login successful";
+
+                            tempModel.Username = username;
+                            tempModel.AccessToken = token;
+
+                            responseModel.Model = tempModel;
+                        }
+                        else
+                        {
+                            responseModel.ErrorMessage = "Invalid user or password";
+                        }
+                    }
+                    else
+                    {
+                        responseModel.ErrorMessage = "Invalid user or password";
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                responseModel.ErrorMessage = e.Message;
+            }
+
+            return responseModel;
         }
 
         public ResponseModel<string> RateTeacher(string accessToken, int teacherID, int rate)
         {
-            throw new NotImplementedException();
+            ResponseModel<string> responseModel = new ResponseModel<string>() { Model = string.Empty };
+
+            try
+            {
+                using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(userAccess)))
+                {
+                    var p = new DynamicParameters();
+                    p.Add("@AccessToken", accessToken);
+                    p.Add("@TeacherID", teacherID);
+                    p.Add("@Rate", rate);
+
+                    responseModel.Model = connection.Query<string>("dbo.spRateTeacher", p, commandType: CommandType.StoredProcedure).FirstOrDefault();
+
+                    responseModel.IsSuccess = true;
+                }
+            }
+            catch (Exception e)
+            {
+                responseModel.ErrorMessage = e.Message;
+            }
+
+            return responseModel;
         }
 
         public ResponseModel<string> SignUpUser(string username, string password, int accountTypeID)
@@ -65,12 +218,12 @@ namespace Student.DataAccess
 
             try
             {
-                if (!UsernameAlreadyExists(username))
+                if (!CheckUsername(username))
                 {
                     Encryptor encryption = new Encryptor();
-                    string passwordHash = encryption.GenerateHash(password, null);
+                    string passwordHash = encryption.GenerateHash(password);
 
-                    using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(writeAccess)))
+                    using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(signUpAccess)))
                     {
                         var p = new DynamicParameters();
                         p.Add("@Username", username);
@@ -85,158 +238,262 @@ namespace Student.DataAccess
                 }
                 else
                 {
-                    responseModel.IsSuccess = false;
                     responseModel.ErrorMessage = "Username taken";
                 }                
             }
             catch (Exception e)
             {
-                responseModel.IsSuccess = false;
                 responseModel.ErrorMessage = e.Message;
             }
 
             return responseModel;
         }
         
-        private bool UsernameAlreadyExists(string username)
-        {
-            bool isExist = true;
-
-            using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(readAccess)))
-            {
-                var p = new DynamicParameters();
-                p.Add("@Username", username);
-
-                isExist = connection.Query<bool>("dbo.spUser_CheckIfExist", p, commandType: CommandType.StoredProcedure).FirstOrDefault();
-            }
-
-            return isExist;
-        }
-
         public ResponseModel<string> AddGrade(GradeModel gradeModel, string accessToken)
         {
-            throw new NotImplementedException();
+            ResponseModel<string> responseModel = new ResponseModel<string>();
+
+            try
+            {
+                using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(userAccess)))
+                {
+                    var p = new DynamicParameters();
+                    p.Add("@StudentID", gradeModel.StudentID);
+                    p.Add("@TeacherID", gradeModel.TeacherID);
+                    p.Add("@Grade", gradeModel.Grade);
+                    p.Add("@GradeDate", DateTime.UtcNow);
+                    p.Add("@GradeNotes", gradeModel.GradeNotes);
+                    p.Add("@AccessToken", accessToken);
+
+                    responseModel.Model = connection.Query<string>("dbo.spGrades_Insert", p, commandType: CommandType.StoredProcedure).FirstOrDefault();
+
+                    responseModel.IsSuccess = true;
+                }
+            }
+            catch (Exception e)
+            {
+                responseModel.ErrorMessage = e.Message;
+            }
+
+            return responseModel;
         }
 
         public ResponseModel<string> EditGrade(GradeModel gradeModel)
         {
-            throw new NotImplementedException();
+            ResponseModel<string> responseModel = new ResponseModel<string>();
+
+            try
+            {
+                using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(userAccess)))
+                {
+                    var p = new DynamicParameters();
+                    p.Add("@GradeID", gradeModel.GradeID);                    
+                    p.Add("@Grade", gradeModel.Grade);
+                    p.Add("@GradeDate", DateTime.UtcNow);
+                    p.Add("@GradeNotes", gradeModel.GradeNotes);
+
+                    responseModel.Model = connection.Query<string>("dbo.spGrades_Update", p, commandType: CommandType.StoredProcedure).FirstOrDefault();
+
+                    responseModel.IsSuccess = true;
+                }
+            }
+            catch (Exception e)
+            {
+                responseModel.ErrorMessage = e.Message;
+            }
+
+            return responseModel;
         }
 
-        //public Dictionary<int, string> GetCustomer_All_Name()
-        //{
-        //    Dictionary<int, string> output = new Dictionary<int, string>();
+        public ResponseModel<string[]> ResetPassword_SendInstructions(string username)
+        {
+            ResponseModel<string[]> responseModel = new ResponseModel<string[]>() { Model = new string[2]};
+            
+            try
+            {
+                if (CheckUsername(username))
+                {                   
+                    using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(resetAccess)))
+                    {
+                        Encryptor encryptor = new Encryptor();
 
-        //    using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(db)))
-        //    {
-        //        // string strSql = "SELECT DISTINCT TableID AS [Key],TableName AS [Value] FROM dbo.TS_TStuctMaster";
-        //        output = connection.Query<KeyValuePair<int, string>>("dbo.spCustomer_GetAll_Name").ToDictionary(pair => pair.Key, pair => pair.Value);
-        //    }
+                        string token = encryptor.GenerateRNG(8, 16);
+                        string hashToken = encryptor.GenerateHash(token);
+                        DateTime expDate = DateTime.UtcNow.AddMinutes(30);
+                        //DateTime expDate = DateTime.UtcNow.AddSeconds(5);
 
-        //    return output;
-        //}
+                        var p = new DynamicParameters();
+                        p.Add("@Username", username);
+                        p.Add("@HashToken", hashToken);
+                        p.Add("@ExpDate", expDate);
 
-        //public CustomerModel GetCustomer_ById(int id)
-        //{
-        //    CustomerModel customer = new CustomerModel();
+                        connection.Execute("dbo.spResetTicket_Insert", p, commandType: CommandType.StoredProcedure);
 
-        //    using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(db)))
-        //    {
-        //        var p = new DynamicParameters();
-        //        p.Add("@Id", id);
-        //        customer = connection.Query<CustomerModel>("dbo.spCustomer_GetById", p, commandType: CommandType.StoredProcedure).FirstOrDefault();
-        //    }
+                        responseModel.Model[0] = username;
+                        responseModel.Model[1] = token;
+                    }
+                }
 
-        //    return customer;
-        //}
+                responseModel.IsSuccess = true;
+            }
+            catch (Exception e)
+            {
+                responseModel.ErrorMessage = e.Message;
+            }
 
-        //public Dictionary<int, string> GetProduct_All_Name()
-        //{
-        //    Dictionary<int, string> output = new Dictionary<int, string>();
+            return responseModel;
+        }
 
-        //    using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(db)))
-        //    {
-        //        output = connection.Query<KeyValuePair<int, string>>("dbo.spProduct_GetAll_Name").ToDictionary(pair => pair.Key, pair => pair.Value);
-        //    }
+        public ResponseModel<string> ActivateTokenLink(string username, string token)
+        {
+            ResponseModel<string> responseModel = new ResponseModel<string>();
 
-        //    return output;
-        //}
+            try
+            {   
+                using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(resetAccess)))
+                {
+                    Encryptor encryptor = new Encryptor();
 
-        //public ProductModel GetProduct_ById(int id)
-        //{
-        //    ProductModel product = new ProductModel();
+                    var p = new DynamicParameters();
+                    p.Add("@Username", username);
 
-        //    using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(db)))
-        //    {
-        //        var p = new DynamicParameters();
-        //        p.Add("@Id", id);
-        //        product = connection.Query<ProductModel>("dbo.spProduct_GetById", p, commandType: CommandType.StoredProcedure).FirstOrDefault();
-        //    }
+                    string hashedToken = connection.Query<string>("dbo.spResetTicket_GetToken", p, commandType: CommandType.StoredProcedure).FirstOrDefault();
+                    
+                    if (!string.IsNullOrEmpty(hashedToken) && encryptor.IsHashValid(token, hashedToken))
+                    {  
+                        responseModel.Model = username;
+                    }
+                    else
+                    {
+                        responseModel.ErrorAction = "[LinkExpired]";
+                    }
 
-        //    return product;
-        //}
+                    responseModel.IsSuccess = true;
+                }               
+            }
+            catch (Exception e)
+            {
+                responseModel.ErrorMessage = e.Message;
+            }
 
-        //public void InsertOrder(OrderModel model)
-        //{
-        //    using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(db)))
-        //    {
-        //        var p = new DynamicParameters();
-        //        p.Add("@OrderDate", model.OrderDate);
-        //        p.Add("@OrderNumber", model.OrderNumber);
-        //        p.Add("@CustomerId", model.CustomerId);
-        //        p.Add("@TotalAmount", model.TotalAmount);
-        //        p.Add("@Id", 0, dbType: DbType.Int32, direction: ParameterDirection.Output);
+            return responseModel;
+        }
 
-        //        connection.Execute("dbo.spOrder_Insert", p, commandType: CommandType.StoredProcedure);
+        public ResponseModel<string> ConfirmPasswordReset(string userToken, string newPassword)
+        {
+            ResponseModel<string> responseModel = new ResponseModel<string>();
 
-        //        model.Id = p.Get<int>("@Id");
-        //    }
-        //}
+            try
+            {
+                Authenticator authenticator = new Authenticator();
 
-        //public void InsertOrderItem(OrderItemModel model)
-        //{
-        //    using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(db)))
-        //    {
-        //        var p = new DynamicParameters();
-        //        p.Add("@OrderId", model.OrderId);
-        //        p.Add("@ProductId", model.ProductId);
-        //        p.Add("@UnitPrice", model.UnitPrice);
-        //        p.Add("@Quantity", model.Quantity);
-        //        p.Add("@Id", 0, dbType: DbType.Int32, direction: ParameterDirection.Output);
+                string message = string.Empty;
+                string hashedPassword; 
 
-        //        connection.Execute("dbo.spOrderItem_Insert", p, commandType: CommandType.StoredProcedure);
+                if (authenticator.VerifyToken(userToken, ref message))
+                {
+                    Encryptor encryptor = new Encryptor();
 
-        //        model.Id = p.Get<int>("@Id");
-        //    }
-        //}
+                    // get hashed Password if link not exp
+                    using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(resetAccess)))
+                    {
+                        var p = new DynamicParameters();
+                        p.Add("@Username", message);
 
-        //public int GetOrder_OrderNumber_Last()
-        //{
-        //    using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(db)))
-        //    {
-        //        return connection.Query<int>("dbo.spOrder_GetOrderNumber_Last", commandType: CommandType.StoredProcedure).FirstOrDefault();
-        //    }
-        //}
+                        hashedPassword = connection.Query<string>("dbo.spUser_GetPassword_LinkNotExp", p, commandType:
+                            CommandType.StoredProcedure).FirstOrDefault();                                               
+                    }
 
-        //public void RemoveCustomer_ById(int id)
-        //{
-        //    using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(db)))
-        //    {
-        //        var p = new DynamicParameters();
-        //        p.Add("@Id", id);
-        //        connection.Execute("dbo.spCustomer_Remove_ById", p, commandType: CommandType.StoredProcedure);
-        //    }
-        //}
+                    if (!string.IsNullOrEmpty(hashedPassword))
+                    {
+                        if (!encryptor.IsHashValid(newPassword, hashedPassword))
+                        {
+                            // change password and delete ticket
+                            string newPasswordHash = encryptor.GenerateHash(newPassword);
+                            using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(resetAccess)))
+                            {
+                                var p = new DynamicParameters();
+                                p.Add("@Username", message);
+                                p.Add("@Password", newPasswordHash);
 
-        //public void UpdateProductPrice_ById(int id, decimal price)
-        //{
-        //    using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(db)))
-        //    {
-        //        var p = new DynamicParameters();
-        //        p.Add("@Id", id);
-        //        p.Add("@Price", price);
-        //        connection.Execute("dbo.spProduct_UpdatePrice_ById", p, commandType: CommandType.StoredProcedure);
-        //    }
-        //}
+                                connection.Execute("dbo.spUser_ChangePassword", p, commandType:
+                                    CommandType.StoredProcedure);
+
+                                responseModel.IsSuccess = true;
+                                responseModel.Model = "Password changed successfully!";
+                            }
+                        }
+                        else // new password is the same as old one
+                        {
+                            responseModel.ErrorMessage = "New password must be different from the old one";
+                        }                        
+                    }
+                    else 
+                    {
+                        responseModel.ErrorAction = "[LinkExpired]";                        
+                    }
+                }
+                else
+                {
+                    responseModel.ErrorMessage = message;
+                }               
+            }
+            catch (Exception e)
+            {
+                responseModel.ErrorMessage = e.Message;
+            }
+
+            return responseModel;
+        }
+
+        public bool CheckActivity(string username, string activity, ref string errorMessage)
+        {
+            bool isAllowed = false;
+            try
+            {
+                using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(userAccess)))
+                {
+                    var p = new DynamicParameters();
+                    p.Add("@Username", username);
+                    p.Add("@Activity", activity);
+
+                    isAllowed = connection.Query<bool>("dbo.spCheckActivity", p, commandType: CommandType.StoredProcedure).FirstOrDefault();
+
+                    if (!isAllowed)
+                    {
+                        errorMessage = "You're not allowed, bad kitty !";
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                errorMessage = e.Message;
+            }
+
+            return isAllowed;
+        }
+
+        private void InsertAccessToken(int userID, string accessToken)
+        {
+            using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(loginAccess)))
+            {
+                var p = new DynamicParameters();
+                p.Add("@UserID", userID);
+                p.Add("@AccessToken", accessToken);
+
+                connection.Execute("dbo.spToken_Insert", p, commandType: CommandType.StoredProcedure);
+            }
+        }
+
+        private bool CheckUsername(string username)
+        {
+            using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(signUpAccess)))
+            {
+                var p = new DynamicParameters();
+                p.Add("@Username", username);
+
+                return connection.Query<bool>("dbo.spUser_CheckIfExist", p, commandType: CommandType.StoredProcedure).FirstOrDefault();
+            }
+        }
     }
 }

@@ -18,7 +18,7 @@ namespace Student.Helpers
         {
             try
             {
-                var resultedJson = new JwtBuilder()
+                var resultedJson = new JwtBuilder()                    
                     .WithSecret(GlobalConfig.secretKey)
                     .MustVerifySignature()
                     .Decode<IDictionary<string, string>>(accessToken);

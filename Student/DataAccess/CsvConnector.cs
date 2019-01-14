@@ -17,6 +17,7 @@ namespace Student.DataAccess
         private readonly string ratingsFile = "Ratings.csv";
         private readonly string accountTypesFile = "AccountTypes.csv";
         private readonly string activitiesFile = "Activities.csv";
+        private readonly string resetTicketsFile = "ResetTickets.csv";
         private readonly string csvDelimiter =  "--,--";
 
         public ResponseModel<UserModel> LoginUser(string username, string password)
@@ -27,17 +28,11 @@ namespace Student.DataAccess
 
             if (string.IsNullOrEmpty(checkFileResult))
             {
-                responseModel.ErrorMessage = "Invalid user or password";
-
-                string[] user = RowAlreadyExists(filesDirectory + usersFile, username, 1);
-                if (user != null)
+                string[] user = GetRowByColumn(filesDirectory + usersFile, username, 1);
+                if (user != null && !string.IsNullOrEmpty(user[2]))
                 {
-                    Encryptor encryption = new Encryptor();
-
-                    if (!string.IsNullOrEmpty(user[2]))
-                    {                        
-                        responseModel.IsSuccess = encryption.IsHashValid(password, user[2]);
-                    }
+                    Encryptor encryption = new Encryptor();                                           
+                    responseModel.IsSuccess = encryption.IsHashValid(password, user[2]);                    
 
                     if (responseModel.IsSuccess)
                     {
@@ -51,7 +46,7 @@ namespace Student.DataAccess
                         {
                             responseModel.ErrorMessage = "Login successful";
 
-                            tempModel.Username = user[1];
+                            tempModel.Username = username;
                             tempModel.AccessToken = token;
 
                             responseModel.Model = tempModel;
@@ -61,7 +56,15 @@ namespace Student.DataAccess
                             responseModel.ErrorMessage = insertTokenResponse;
                         }                        
                     }
-                }                
+                    else
+                    {
+                        responseModel.ErrorMessage = "Invalid user or password";
+                    }
+                }
+                else
+                {
+                    responseModel.ErrorMessage = "Invalid user or password";
+                }
             }
             else
             {
@@ -82,10 +85,10 @@ namespace Student.DataAccess
 
             if (string.IsNullOrEmpty(checkFileResult))
             {
-                if (RowAlreadyExists(filePath, username, 1) == null)
+                if (GetRowByColumn(filePath, username, 1) == null)
                 {
                     Encryptor encryption = new Encryptor();
-                    string passwordHash = encryption.GenerateHash(password, null);
+                    string passwordHash = encryption.GenerateHash(password);
                                        
                     string newUser =
                         GetNewID(filePath) + csvDelimiter +
@@ -112,54 +115,6 @@ namespace Student.DataAccess
             }
 
             return responseModel;
-        }
-
-        public string InsertAccessToken(int userID, string accessToken)
-        {
-            // CheckDiscrepancies();            
-
-            string filePath = filesDirectory + tokensFile;
-            string checkFileResult = CheckFile(filePath, FileAccess.Write, "Session");
-
-            if (string.IsNullOrEmpty(checkFileResult))
-            {
-                string newToken =
-                        userID.ToString() + csvDelimiter +
-                        accessToken;
-
-                if (RowAlreadyExists(filesDirectory + tokensFile, userID.ToString(), 0) == null)
-                {  
-                    using (StreamWriter w = File.AppendText(filePath))
-                    {
-                        w.WriteLine(newToken);
-                    }
-
-                    return null;
-                }
-                else
-                {                   
-                    string[] lines = File.ReadAllLines(filePath);
-
-                    for (int i = 0; i < lines.Length; i++)
-                    {
-                        string[] userLine = lines[i].Split(new[] { csvDelimiter }, StringSplitOptions.None);
-
-                        if (userLine[0].Equals(userID.ToString()))
-                        {                            
-                            lines[i] = userLine[0] + csvDelimiter + accessToken;
-                            break;
-                        }
-                    }
-
-                    File.WriteAllLines(filePath, lines);                    
-
-                    return null;
-                }
-            }
-            else
-            {
-                return checkFileResult;
-            }
         }
 
         public ResponseModel<List<StudentModel>> GetStudents()
@@ -283,7 +238,7 @@ namespace Student.DataAccess
 
         public ResponseModel<int> GetStudentRating(int studentID, int teacherID)
         {
-            ResponseModel<int> responseModel = new ResponseModel<int>() {};
+            ResponseModel<int> responseModel = new ResponseModel<int>();
 
             string checkFileResult = CheckFile(filesDirectory + ratingsFile, FileAccess.Read, "Ratings");
 
@@ -372,12 +327,15 @@ namespace Student.DataAccess
                     }                    
                 }
 
-                using (StreamWriter w = File.AppendText(filePath))
-                {                    
-                    w.WriteLine(GetNewID(filePath) + csvDelimiter +
+                string rating =
+                        GetNewID(filePath) + csvDelimiter +
                         studentID + csvDelimiter +
                         teacherID.ToString() + csvDelimiter +
-                        rate);
+                        rate;
+
+                using (StreamWriter w = File.AppendText(filePath))
+                {                    
+                    w.WriteLine(rating);
                 }
 
                 UpdateTeacherRating(teacherID);
@@ -430,6 +388,332 @@ namespace Student.DataAccess
             return responseModel;
         }
 
+        public ResponseModel<string> AddGrade(GradeModel gradeModel, string accessToken)
+        {
+            ResponseModel<string> responseModel = new ResponseModel<string>();
+
+            // CheckDiscrepancies();            
+
+            string filePath = filesDirectory + gradesFile;
+            string gradesFileResult = CheckFile(filePath, FileAccess.Write, "Grades");
+            string teachersFileResult = CheckFile(filesDirectory + teachersFile, FileAccess.Read, "Teachers");
+            string tokensFileResult = CheckFile(filesDirectory + tokensFile, FileAccess.Read, "Tokens");
+
+            if (string.IsNullOrEmpty(gradesFileResult) && string.IsNullOrEmpty(teachersFileResult)
+                && string.IsNullOrEmpty(tokensFileResult))
+            {
+                if (GetTeacherID(accessToken).Equals(gradeModel.TeacherID.ToString()))
+                {
+                    string newGrade =
+                                        GetNewID(filePath) + csvDelimiter +
+                                        gradeModel.StudentID.ToString() + csvDelimiter +
+                                        gradeModel.TeacherID.ToString() + csvDelimiter +
+                                        gradeModel.Grade + csvDelimiter +
+                                        DateTime.UtcNow.ToString() + csvDelimiter +
+                                        gradeModel.GradeNotes;
+
+                    using (StreamWriter w = File.AppendText(filePath))
+                    {
+                        w.WriteLine(newGrade);
+                    }
+
+                    responseModel.IsSuccess = true;
+                }
+                else
+                {
+                    responseModel.ErrorMessage = "Teacher mismatch";
+                }
+            }
+            else
+            {
+                responseModel.ErrorMessage =
+                    gradesFileResult + "\n" +
+                    teachersFileResult + "\n" +
+                    tokensFileResult;
+            }
+
+            return responseModel;
+        }
+
+        public ResponseModel<string> EditGrade(GradeModel gradeModel)
+        {
+            ResponseModel<string> responseModel = new ResponseModel<string>();
+
+            // CheckDiscrepancies();            
+
+            string filePath = filesDirectory + gradesFile;
+            string gradesFileResult = CheckFile(filePath, FileAccess.Write, "Grades");
+
+            if (string.IsNullOrEmpty(gradesFileResult))
+            {
+                string[] lines = File.ReadAllLines(filePath);
+
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    string[] gradeLine = lines[i].Split(new[] { csvDelimiter }, StringSplitOptions.None);
+
+                    if (gradeLine[0].Equals(gradeModel.GradeID.ToString()))
+                    {
+                        lines[i] = gradeLine[0] + csvDelimiter +
+                                    gradeLine[1] + csvDelimiter +
+                                    gradeLine[2] + csvDelimiter +
+                                    gradeModel.Grade + csvDelimiter +
+                                    DateTime.UtcNow.ToString() + csvDelimiter +
+                                    gradeModel.GradeNotes;
+                        break;
+                    }
+                }
+
+                File.WriteAllLines(filePath, lines);
+
+                responseModel.IsSuccess = true;                
+            }
+            else
+            {
+                responseModel.ErrorMessage = gradesFileResult;
+            }
+
+            return responseModel;
+        }
+
+        public ResponseModel<string[]> ResetPassword_SendInstructions(string username)
+        {
+            ResponseModel<string[]> responseModel = new ResponseModel<string[]>() { Model = new string[2] };
+
+            string filePath = filesDirectory + resetTicketsFile;
+            string resetTicketsFileResult = CheckFile(filePath, FileAccess.Write, "Reset");
+            string usersFileResult = CheckFile(filesDirectory + usersFile, FileAccess.Read, "Users");
+
+            if (string.IsNullOrEmpty(resetTicketsFileResult) && string.IsNullOrEmpty(usersFileResult))
+            {
+                string[] userLine = GetRowByColumn(filesDirectory + usersFile, username, 1);
+
+                if (userLine != null)
+                {
+                    Encryptor encryptor = new Encryptor();
+
+                    string token = encryptor.GenerateRNG(8, 16);
+                    string hashToken = encryptor.GenerateHash(token);
+                    DateTime expDate = DateTime.UtcNow.AddMinutes(30);
+                    //DateTime expDate = DateTime.UtcNow.AddSeconds(5);
+
+                    if (GetRowByColumn(filePath, userLine[0], 1) != null)
+                    {
+                        string[] lines = File.ReadAllLines(filePath);
+
+                        for (int i = 0; i < lines.Length; i++)
+                        {
+                            string[] ticketLine = lines[i].Split(new[] { csvDelimiter }, StringSplitOptions.None);
+
+                            if (ticketLine[1].Equals(userLine[0]))
+                            {
+                                lines[i] = ticketLine[0] + csvDelimiter +
+                                            ticketLine[1] + csvDelimiter +
+                                            hashToken + csvDelimiter +
+                                            expDate.ToString();
+                                break;
+                            }
+                        }
+
+                        File.WriteAllLines(filePath, lines);
+                    }
+                    else
+                    {
+
+                        string ticketLine = 
+                                GetNewID(filePath) + csvDelimiter +
+                                userLine[0] + csvDelimiter +
+                                hashToken + csvDelimiter +
+                                expDate.ToString();
+
+                        using (StreamWriter w = File.AppendText(filePath))
+                        {
+                            w.WriteLine(ticketLine);
+                        }
+                    }
+
+                    responseModel.Model[0] = username;
+                    responseModel.Model[1] = token;
+                }
+
+                responseModel.IsSuccess = true;
+            }
+            else
+            {
+                responseModel.ErrorMessage =
+                    resetTicketsFileResult + "\n" +
+                    usersFileResult;
+            }
+
+            return responseModel;
+        }
+
+        public ResponseModel<string> ActivateTokenLink(string username, string token)
+        {
+            ResponseModel<string> responseModel = new ResponseModel<string>();
+
+            string filePath = filesDirectory + resetTicketsFile;
+            string resetTicketsFileResult = CheckFile(filePath, FileAccess.Write, "Reset");
+            string usersFileResult = CheckFile(filesDirectory + usersFile, FileAccess.Read, "Users");
+
+            if (string.IsNullOrEmpty(resetTicketsFileResult) && string.IsNullOrEmpty(usersFileResult))
+            {         
+                string[] userLine = GetRowByColumn(filesDirectory + usersFile, username, 1);
+
+                if (userLine != null)
+                {
+                    Encryptor encryptor = new Encryptor();
+                    string hashedToken = string.Empty;
+
+                    string[] lines = File.ReadAllLines(filePath);
+                    
+                    foreach (string line in lines)
+                    {
+                        string[] ticketLine = line.Split(new[] { csvDelimiter }, StringSplitOptions.None);
+
+                        if (ticketLine[1].Equals(userLine[0]) && Convert.ToDateTime(ticketLine[3]) > DateTime.UtcNow)
+                        {
+                            hashedToken = ticketLine[2];                            
+                            break;
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(hashedToken) && encryptor.IsHashValid(token, hashedToken))
+                    {
+                        responseModel.Model = username;
+                    }
+                    else
+                    {
+                        responseModel.ErrorAction = "[LinkExpired]";
+                    }
+                }
+                else
+                {
+                    responseModel.ErrorAction = "[LinkExpired]";
+                }
+
+                responseModel.IsSuccess = true;
+            }
+            else
+            {
+                responseModel.ErrorMessage =
+                    resetTicketsFileResult + "\n" +
+                    usersFileResult;
+            }
+
+            return responseModel;
+        }
+
+        public ResponseModel<string> ConfirmPasswordReset(string userToken, string newPassword)
+        {
+            ResponseModel<string> responseModel = new ResponseModel<string>();
+
+            string filePath = filesDirectory + resetTicketsFile;
+            string usersFilePath = filesDirectory + usersFile;
+            string resetTicketsFileResult = CheckFile(filePath, FileAccess.Write, "Reset");
+            string usersFileResult = CheckFile(usersFilePath, FileAccess.Write, "Users");
+
+            if (string.IsNullOrEmpty(resetTicketsFileResult) && string.IsNullOrEmpty(usersFileResult))
+            {
+                Authenticator authenticator = new Authenticator();
+
+                string message = string.Empty;
+                string hashedPassword = string.Empty;
+
+                if (authenticator.VerifyToken(userToken, ref message))
+                {
+                    string[] userLine = GetRowByColumn(usersFilePath, message, 1);
+
+                    if (userLine != null)
+                    {
+                        Encryptor encryptor = new Encryptor();
+
+                        string[] lines = File.ReadAllLines(filePath);
+
+                        foreach (string line in lines)
+                        {
+                            string[] ticketLine = line.Split(new[] { csvDelimiter }, StringSplitOptions.None);
+
+                            if (ticketLine[1].Equals(userLine[0]) && Convert.ToDateTime(ticketLine[3]) > DateTime.UtcNow)
+                            {
+                                hashedPassword = userLine[2];
+                                break;
+                            }
+                        }
+
+                        if (!string.IsNullOrEmpty(hashedPassword))
+                        {                            
+                            if (!encryptor.IsHashValid(newPassword, hashedPassword))
+                            {
+                                // change password 
+                                string newPasswordHash = encryptor.GenerateHash(newPassword);
+
+                                string[] userLines = File.ReadAllLines(usersFilePath);
+
+                                for (int i = 0; i < userLines.Length; i++)
+                                {
+                                    string[] user = userLines[i].Split(new[] { csvDelimiter }, StringSplitOptions.None);
+
+                                    if (user[0].Equals(userLine[0]))
+                                    {
+                                        userLines[i] = 
+                                                user[0] + csvDelimiter +
+                                                user[1] + csvDelimiter +
+                                                newPasswordHash + csvDelimiter +
+                                                user[3];
+                                        break;
+                                    }
+                                }
+
+                                File.WriteAllLines(usersFilePath, userLines);
+
+                                // delete ticket
+                                for (int i = 0; i < lines.Length; i++)
+                                {
+                                    string[] ticketLine = lines[i].Split(new[] { csvDelimiter }, StringSplitOptions.None);
+
+                                    if (ticketLine[1].Equals(userLine[0]))
+                                    {
+                                        lines = lines.RemoveAtIndex(i);
+                                        break;
+                                    }
+                                }
+
+                                File.WriteAllLines(filePath, lines);
+
+                                responseModel.IsSuccess = true;
+                                responseModel.Model = "Password changed successfully!";
+                            }
+                            else // new password is the same as old one
+                            {
+                                responseModel.ErrorMessage = "New password must be different from the old one";
+                            }
+                        }
+                        else
+                        {
+                            responseModel.ErrorAction = "[LinkExpired]";
+                        }
+                    }
+                    else
+                    {
+                        responseModel.ErrorAction = "[LinkExpired]";
+                    }
+                }
+                else
+                {
+                    responseModel.ErrorMessage = message;
+                }                
+            }
+            else
+            {
+                responseModel.ErrorMessage =
+                    resetTicketsFileResult + "\n" +
+                    usersFileResult;
+            }
+
+            return responseModel;
+        }
+
         public bool CheckActivity(string username, string activity, ref string errorMessage)
         {
             string usersFileResult = CheckFile(filesDirectory + usersFile, FileAccess.Read, "Users");
@@ -437,7 +721,7 @@ namespace Student.DataAccess
 
             if (string.IsNullOrEmpty(usersFileResult) && string.IsNullOrEmpty(activitiesFileResult))
             {
-                int accountTypeID = Convert.ToInt32(RowAlreadyExists(filesDirectory + usersFile, username, 1)[3]);
+                int accountTypeID = Convert.ToInt32(GetRowByColumn(filesDirectory + usersFile, username, 1)[3]);
 
                 string[] lines = File.ReadAllLines(filesDirectory + activitiesFile);
 
@@ -451,17 +735,63 @@ namespace Student.DataAccess
                     }
                 }
 
-                errorMessage = "You're not allowed, bad kitty !";               
+                errorMessage = "You're not allowed, bad kitty !";
             }
             else
             {
-                errorMessage = usersFileResult + "\n" + activitiesFileResult;                
+                errorMessage = usersFileResult + "\n" + activitiesFileResult;
             }
 
             return false;
         }
 
-        private string[] RowAlreadyExists(string filePath, string columnValue, int columnNumber)
+        private string InsertAccessToken(int userID, string accessToken)
+        {
+            // CheckDiscrepancies();            
+
+            string filePath = filesDirectory + tokensFile;
+            string checkFileResult = CheckFile(filePath, FileAccess.Write, "Session");
+
+            if (string.IsNullOrEmpty(checkFileResult))
+            {
+                string newToken =
+                        userID.ToString() + csvDelimiter +
+                        accessToken;
+
+                if (GetRowByColumn(filesDirectory + tokensFile, userID.ToString(), 0) == null)
+                {
+                    using (StreamWriter w = File.AppendText(filePath))
+                    {
+                        w.WriteLine(newToken);
+                    }
+                }
+                else
+                {
+                    string[] lines = File.ReadAllLines(filePath);
+
+                    for (int i = 0; i < lines.Length; i++)
+                    {
+                        string[] userLine = lines[i].Split(new[] { csvDelimiter }, StringSplitOptions.None);
+
+                        if (userLine[0].Equals(userID.ToString()))
+                        {
+                            lines[i] = userLine[0] + csvDelimiter + accessToken;
+                            break;
+                        }
+                    }
+
+                    File.WriteAllLines(filePath, lines);
+                }
+
+                return null;
+            }
+            else
+            {
+                return checkFileResult;
+            }
+        }
+
+        private string[] GetRowByColumn(string filePath, string columnValue, int columnNumber)
         {
             string[] lines = File.ReadAllLines(filePath);
 
@@ -580,127 +910,44 @@ namespace Student.DataAccess
         {
             string[] lines = File.ReadAllLines(filePath);
 
-            int[] arrayOfID = new int[lines.Length];
-            
-            for (int i=0; i < arrayOfID.Length; i++)
+            if (lines.Length > 0)
             {
-                string[] line = lines[i].Split(new[] { csvDelimiter }, StringSplitOptions.None);
-                
-                if (int.TryParse(line[0], out int tempId))
+                int[] arrayOfID = new int[lines.Length];
+
+                for (int i = 0; i < arrayOfID.Length; i++)
                 {
-                    arrayOfID[i] = tempId;
+                    string[] line = lines[i].Split(new[] { csvDelimiter }, StringSplitOptions.None);
+
+                    if (int.TryParse(line[0], out int tempId))
+                    {
+                        arrayOfID[i] = tempId;
+                    }
+                    else
+                    {
+                        arrayOfID[i] = -1;
+                    }
                 }
-                else
-                {
-                    arrayOfID[i] = -1;
-                }
+
+                Array.Sort(arrayOfID);
+
+                return (arrayOfID[arrayOfID.Length - 1] + 1).ToString();
             }
 
-            Array.Sort(arrayOfID);
-
-            return (arrayOfID[arrayOfID.Length - 1] + 1).ToString();
+            return "1";
         }
 
         private string GetStudentID(string accessToken)
         {
-            string userID = RowAlreadyExists(filesDirectory + tokensFile, accessToken, 1)[0];
-            
-            return RowAlreadyExists(filesDirectory + studentsFile, userID, 1)[0];
+            string userID = GetRowByColumn(filesDirectory + tokensFile, accessToken, 1)[0];
+
+            return GetRowByColumn(filesDirectory + studentsFile, userID, 1)[0];
         }
 
         private string GetTeacherID(string accessToken)
         {
-            string userID = RowAlreadyExists(filesDirectory + tokensFile, accessToken, 1)[0];
+            string userID = GetRowByColumn(filesDirectory + tokensFile, accessToken, 1)[0];
 
-            return RowAlreadyExists(filesDirectory + teachersFile, userID, 1)[0];
-        }
-
-        public ResponseModel<string> AddGrade(GradeModel gradeModel, string accessToken)
-        {
-            ResponseModel<string> responseModel = new ResponseModel<string>();
-
-            // CheckDiscrepancies();            
-
-            string filePath = filesDirectory + gradesFile;
-            string gradesFileResult = CheckFile(filePath, FileAccess.Write, "Grades");
-            string teachersFileResult = CheckFile(filesDirectory + teachersFile, FileAccess.Read, "Teachers");
-            string tokensFileResult = CheckFile(filesDirectory + tokensFile, FileAccess.Read, "Tokens");
-
-            if (string.IsNullOrEmpty(gradesFileResult) && string.IsNullOrEmpty(teachersFileResult)
-                && string.IsNullOrEmpty(tokensFileResult))
-            {
-                if (GetTeacherID(accessToken).Equals(gradeModel.TeacherID.ToString()))
-                {
-                    string newGrade =
-                                        GetNewID(filePath) + csvDelimiter +
-                                        gradeModel.StudentID.ToString() + csvDelimiter +
-                                        gradeModel.TeacherID.ToString() + csvDelimiter +
-                                        gradeModel.Grade + csvDelimiter +
-                                        DateTime.UtcNow.ToString() + csvDelimiter +
-                                        gradeModel.GradeNotes;
-
-                    using (StreamWriter w = File.AppendText(filePath))
-                    {
-                        w.WriteLine(newGrade);
-                    }
-
-                    responseModel.IsSuccess = true;
-                }
-                else
-                {
-                    responseModel.ErrorMessage = "Teacher mismatch";
-                }
-            }
-            else
-            {
-                responseModel.ErrorMessage =
-                    gradesFileResult + "\n" +
-                    teachersFileResult + "\n" +
-                    tokensFileResult;
-            }
-
-            return responseModel;
-        }
-
-        public ResponseModel<string> EditGrade(GradeModel gradeModel)
-        {
-            ResponseModel<string> responseModel = new ResponseModel<string>();
-
-            // CheckDiscrepancies();            
-
-            string filePath = filesDirectory + gradesFile;
-            string gradesFileResult = CheckFile(filePath, FileAccess.Write, "Grades");
-
-            if (string.IsNullOrEmpty(gradesFileResult))
-            {
-                string[] lines = File.ReadAllLines(filePath);
-
-                for (int i = 0; i < lines.Length; i++)
-                {
-                    string[] gradeLine = lines[i].Split(new[] { csvDelimiter }, StringSplitOptions.None);
-
-                    if (gradeLine[0].Equals(gradeModel.GradeID.ToString()))
-                    {
-                        lines[i] = gradeLine[0] + csvDelimiter +
-                                    gradeLine[1] + csvDelimiter +
-                                    gradeLine[2] + csvDelimiter +
-                                    gradeModel.Grade + csvDelimiter +
-                                    DateTime.UtcNow.ToString() + csvDelimiter +
-                                    gradeModel.GradeNotes; ;
-                        break;
-                    }
-                }
-
-                File.WriteAllLines(filePath, lines);
-
-                responseModel.IsSuccess = true;                
-            }
-            else
-            {
-                responseModel.ErrorMessage = gradesFileResult;
-            }
-
-            return responseModel;
+            return GetRowByColumn(filesDirectory + teachersFile, userID, 1)[0];
         }
     }
 }
