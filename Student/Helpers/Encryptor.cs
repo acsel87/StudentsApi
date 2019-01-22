@@ -12,38 +12,38 @@ namespace Student.Helpers
         // todo - is it always 103 for scrypt?
         private const int hashLength = 103;
 
-        public string GenerateHash(string password)
+        public string GenerateHash(string input)
         {
             string salt = GenerateRNG(16,32);
 
             // calculate iterationCount = 16384, blockSize = 8, threadCount = 1
             ScryptEncoder encoder = new ScryptEncoder(16384, 8, 1);
-            string passwordWithSaltString = salt + password;
-            string hashedPasswordWithSalt = salt + encoder.Encode(passwordWithSaltString);
+            string inputWithSaltString = salt + input;
+            string hashedInputWithSalt = salt + encoder.Encode(inputWithSaltString);
 
-            return hashedPasswordWithSalt;
+            return hashedInputWithSalt;
         }
 
-        public bool IsHashValid(string currentPassword, string hashedPasswordWithSalt)
+        public bool IsHashValid(string currentInput, string hashedInputWithSalt)
         {
-            string saltString = hashedPasswordWithSalt.Substring(0, hashedPasswordWithSalt.Length - hashLength);
-            string hashString = hashedPasswordWithSalt.Substring(hashedPasswordWithSalt.Length - hashLength, hashLength);
+            string saltString = hashedInputWithSalt.Substring(0, hashedInputWithSalt.Length - hashLength);
+            string hashString = hashedInputWithSalt.Substring(hashedInputWithSalt.Length - hashLength, hashLength);
 
             ScryptEncoder encoder = new ScryptEncoder(16384, 8, 1);
-            return encoder.Compare(saltString + currentPassword, hashString);
+            return encoder.Compare(saltString + currentInput, hashString);
         }
 
-        public string CreateAccessToken(string username)
+        public string CreateAccessToken(string userID)
         {
-            if (!string.IsNullOrEmpty(username))
+            if (!string.IsNullOrEmpty(userID))
             {
                 return new JwtBuilder()
                           .WithAlgorithm(new HMACSHA256Algorithm())
                           .WithUrlEncoder(new JWT.JwtBase64UrlEncoder())
                           .WithSecret(GlobalConfig.secretKey)
-                          .AddClaim("sub", username)
-                          .AddClaim("exp", DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds())
-                          .Build(); ;
+                          .AddClaim("sub", userID)
+                          .AddClaim("exp", GlobalConfig.GetAccessTokenExpDate())
+                          .Build();
             }
 
             return null;
@@ -55,12 +55,13 @@ namespace Student.Helpers
             int size = random.Next(minSize, maxSize);
 
             byte[] bytes = new byte[size];
-
-            RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
-            
-            rng.GetNonZeroBytes(bytes);      
-            
-            return Convert.ToBase64String(bytes);            
+			
+            using (RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider())
+			{            
+				rng.GetNonZeroBytes(bytes);      
+				
+				return Convert.ToBase64String(bytes);            
+			}
         }
 
         // for other hash algorithms against timing attack

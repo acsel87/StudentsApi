@@ -1,4 +1,5 @@
 ﻿using Dapper;
+using JWT.Builder;
 using Student.Helpers;
 using Student.Models;
 using System;
@@ -55,13 +56,13 @@ namespace Student.DataAccess
             }
             catch (Exception e)
             {
-                responseModel.ErrorMessage = e.Message;
+                responseModel.OutputMessage = e.Message;
             }
 
             return responseModel;
         }
 
-        public ResponseModel<int> GetStudentRating(int studentID, int teacherID)
+        public ResponseModel<int> GetStudentRating(string userID, int teacherID)
         {
             ResponseModel<int> responseModel = new ResponseModel<int>();
 
@@ -70,17 +71,22 @@ namespace Student.DataAccess
                 using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(userAccess)))
                 {
                     var p = new DynamicParameters();
-                    p.Add("@StudentID", studentID);
+                    p.Add("@UserID", Convert.ToInt32(userID));
                     p.Add("@TeacherID", teacherID);
 
                     responseModel.Model = connection.Query<int>("dbo.spStudentRating_Get", p, commandType: CommandType.StoredProcedure).FirstOrDefault();
 
                     responseModel.IsSuccess = true;
                 }
+
+                if (responseModel.Model < 1)
+                {
+                    responseModel.Model = 0;
+                }
             }
             catch (Exception e)
             {
-                responseModel.ErrorMessage = e.Message;
+                responseModel.OutputMessage = e.Message;
             }
 
             return responseModel;
@@ -104,7 +110,7 @@ namespace Student.DataAccess
             }
             catch (Exception e)
             {
-                responseModel.ErrorMessage = e.Message;
+                responseModel.OutputMessage = e.Message;
             }
 
             return responseModel;
@@ -128,7 +134,7 @@ namespace Student.DataAccess
             }
             catch (Exception e)
             {
-                responseModel.ErrorMessage = e.Message;
+                responseModel.OutputMessage = e.Message;
             }
 
             return responseModel;
@@ -149,44 +155,46 @@ namespace Student.DataAccess
                     
                     if (userID_Pass.Key > 0 && !string.IsNullOrEmpty(userID_Pass.Value))
                     {
-                        Encryptor encryption = new Encryptor();
-                        responseModel.IsSuccess = encryption.IsHashValid(password, userID_Pass.Value);
+                        Encryptor encryptor = new Encryptor();
+                        responseModel.IsSuccess = encryptor.IsHashValid(password, userID_Pass.Value);
 
                         if (responseModel.IsSuccess)
                         {
                             UserModel tempModel = new UserModel();
 
-                            string token = encryption.CreateAccessToken(username); // maybe better on client side?
+                            string refreshToken = encryptor.GenerateRNG(32, 32);
+                            string refreshTokenHash = encryptor.GenerateHash(refreshToken);
 
-                            InsertAccessToken(Convert.ToInt32(userID_Pass.Key), token);
-
-                            responseModel.ErrorMessage = "Login successful";
+                            InsertRefreshToken(userID_Pass.Key, refreshTokenHash);
 
                             tempModel.Username = username;
-                            tempModel.AccessToken = token;
+                            tempModel.RefreshToken = refreshToken;
+                            tempModel.AccessToken = encryptor.CreateAccessToken(userID_Pass.Key.ToString());
+                            tempModel.AccessToken_ExpDate = GlobalConfig.GetAccessTokenExpDate();
 
                             responseModel.Model = tempModel;
+                            responseModel.OutputMessage = "Login successful";
                         }
                         else
                         {
-                            responseModel.ErrorMessage = "Invalid user or password";
+                            responseModel.OutputMessage = "Invalid user or password";
                         }
                     }
                     else
                     {
-                        responseModel.ErrorMessage = "Invalid user or password";
+                        responseModel.OutputMessage = "Invalid user or password";
                     }
                 }
             }
             catch (Exception e)
             {
-                responseModel.ErrorMessage = e.Message;
+                responseModel.OutputMessage = e.Message;
             }
 
             return responseModel;
         }
 
-        public ResponseModel<string> RateTeacher(string accessToken, int teacherID, int rate)
+        public ResponseModel<string> RateTeacher(string userID, int teacherID, int rate)
         {
             ResponseModel<string> responseModel = new ResponseModel<string>() { Model = string.Empty };
 
@@ -195,7 +203,7 @@ namespace Student.DataAccess
                 using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(userAccess)))
                 {
                     var p = new DynamicParameters();
-                    p.Add("@AccessToken", accessToken);
+                    p.Add("@UserID", Convert.ToInt32(userID));
                     p.Add("@TeacherID", teacherID);
                     p.Add("@Rate", rate);
 
@@ -206,7 +214,7 @@ namespace Student.DataAccess
             }
             catch (Exception e)
             {
-                responseModel.ErrorMessage = e.Message;
+                responseModel.OutputMessage = e.Message;
             }
 
             return responseModel;
@@ -238,41 +246,50 @@ namespace Student.DataAccess
                 }
                 else
                 {
-                    responseModel.ErrorMessage = "Username taken";
+                    responseModel.OutputMessage = "Username taken";
                 }                
             }
             catch (Exception e)
             {
-                responseModel.ErrorMessage = e.Message;
+                responseModel.OutputMessage = e.Message;
             }
 
             return responseModel;
         }
         
-        public ResponseModel<string> AddGrade(GradeModel gradeModel, string accessToken)
+        public ResponseModel<string> AddGrade(GradeModel gradeModel, string userID)
         {
             ResponseModel<string> responseModel = new ResponseModel<string>();
-
+           
             try
             {
+                string gradeInsertResponse = string.Empty;
+
                 using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(userAccess)))
                 {
                     var p = new DynamicParameters();
+                    p.Add("@UserID", Convert.ToInt32(userID));
                     p.Add("@StudentID", gradeModel.StudentID);
                     p.Add("@TeacherID", gradeModel.TeacherID);
                     p.Add("@Grade", gradeModel.Grade);
                     p.Add("@GradeDate", DateTime.UtcNow);
-                    p.Add("@GradeNotes", gradeModel.GradeNotes);
-                    p.Add("@AccessToken", accessToken);
+                    p.Add("@GradeNotes", gradeModel.GradeNotes);                    
 
-                    responseModel.Model = connection.Query<string>("dbo.spGrades_Insert", p, commandType: CommandType.StoredProcedure).FirstOrDefault();
+                    gradeInsertResponse = connection.Query<string>("dbo.spGrades_Insert", p, commandType: CommandType.StoredProcedure).FirstOrDefault();
+                }
 
+                if (string.IsNullOrEmpty(gradeInsertResponse))
+                {
                     responseModel.IsSuccess = true;
+                }
+                else
+                {
+                    responseModel.OutputMessage = gradeInsertResponse;
                 }
             }
             catch (Exception e)
             {
-                responseModel.ErrorMessage = e.Message;
+                responseModel.OutputMessage = e.Message;
             }
 
             return responseModel;
@@ -299,7 +316,7 @@ namespace Student.DataAccess
             }
             catch (Exception e)
             {
-                responseModel.ErrorMessage = e.Message;
+                responseModel.OutputMessage = e.Message;
             }
 
             return responseModel;
@@ -319,13 +336,11 @@ namespace Student.DataAccess
 
                         string token = encryptor.GenerateRNG(8, 16);
                         string hashToken = encryptor.GenerateHash(token);
-                        DateTime expDate = DateTime.UtcNow.AddMinutes(30);
-                        //DateTime expDate = DateTime.UtcNow.AddSeconds(5);
 
                         var p = new DynamicParameters();
                         p.Add("@Username", username);
                         p.Add("@HashToken", hashToken);
-                        p.Add("@ExpDate", expDate);
+                        p.Add("@ExpDate", GlobalConfig.GetResetTokenExpDate());
 
                         connection.Execute("dbo.spResetTicket_Insert", p, commandType: CommandType.StoredProcedure);
 
@@ -338,7 +353,7 @@ namespace Student.DataAccess
             }
             catch (Exception e)
             {
-                responseModel.ErrorMessage = e.Message;
+                responseModel.OutputMessage = e.Message;
             }
 
             return responseModel;
@@ -357,11 +372,11 @@ namespace Student.DataAccess
                     var p = new DynamicParameters();
                     p.Add("@Username", username);
 
-                    string hashedToken = connection.Query<string>("dbo.spResetTicket_GetToken", p, commandType: CommandType.StoredProcedure).FirstOrDefault();
+                   Tuple<int, string> userID_HashedToken = connection.Query<Tuple<int, string>>("dbo.spResetTicket_GetToken", p, commandType: CommandType.StoredProcedure).FirstOrDefault();
                     
-                    if (!string.IsNullOrEmpty(hashedToken) && encryptor.IsHashValid(token, hashedToken))
+                    if (userID_HashedToken != null && encryptor.IsHashValid(token, userID_HashedToken.Item2))
                     {  
-                        responseModel.Model = username;
+                        responseModel.Model = userID_HashedToken.Item1.ToString();
                     }
                     else
                     {
@@ -373,7 +388,7 @@ namespace Student.DataAccess
             }
             catch (Exception e)
             {
-                responseModel.ErrorMessage = e.Message;
+                responseModel.OutputMessage = e.Message;
             }
 
             return responseModel;
@@ -387,22 +402,25 @@ namespace Student.DataAccess
             {
                 Authenticator authenticator = new Authenticator();
 
-                string message = string.Empty;
-                string hashedPassword; 
+                string tokenOutput = string.Empty;
+                string hashedPassword = string.Empty; 
 
-                if (authenticator.VerifyToken(userToken, ref message))
+                if (authenticator.VerifyToken(userToken, ref tokenOutput))
                 {
                     Encryptor encryptor = new Encryptor();
 
-                    // get hashed Password if link not exp
-                    using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(resetAccess)))
+                    if (int.TryParse(tokenOutput, out int userID))
                     {
-                        var p = new DynamicParameters();
-                        p.Add("@Username", message);
+                        // get hashed Password if link not exp
+                        using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(resetAccess)))
+                        {
+                            var p = new DynamicParameters();
+                            p.Add("@UserID", userID);
 
-                        hashedPassword = connection.Query<string>("dbo.spUser_GetPassword_LinkNotExp", p, commandType:
-                            CommandType.StoredProcedure).FirstOrDefault();                                               
-                    }
+                            hashedPassword = connection.Query<string>("dbo.spUser_GetPassword_LinkNotExp", p, commandType:
+                                CommandType.StoredProcedure).FirstOrDefault();
+                        }
+                    }                    
 
                     if (!string.IsNullOrEmpty(hashedPassword))
                     {
@@ -413,7 +431,7 @@ namespace Student.DataAccess
                             using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(resetAccess)))
                             {
                                 var p = new DynamicParameters();
-                                p.Add("@Username", message);
+                                p.Add("@UserID", tokenOutput);
                                 p.Add("@Password", newPasswordHash);
 
                                 connection.Execute("dbo.spUser_ChangePassword", p, commandType:
@@ -425,7 +443,7 @@ namespace Student.DataAccess
                         }
                         else // new password is the same as old one
                         {
-                            responseModel.ErrorMessage = "New password must be different from the old one";
+                            responseModel.OutputMessage = "New password must be different from the old one";
                         }                        
                     }
                     else 
@@ -435,18 +453,18 @@ namespace Student.DataAccess
                 }
                 else
                 {
-                    responseModel.ErrorMessage = message;
+                    responseModel.OutputMessage = tokenOutput;
                 }               
             }
             catch (Exception e)
             {
-                responseModel.ErrorMessage = e.Message;
+                responseModel.OutputMessage = e.Message;
             }
 
             return responseModel;
         }
 
-        public bool CheckActivity(string username, string activity, ref string errorMessage)
+        public bool CheckActivity(string userID, string activity, ref string errorMessage)
         {
             bool isAllowed = false;
             try
@@ -454,7 +472,7 @@ namespace Student.DataAccess
                 using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(userAccess)))
                 {
                     var p = new DynamicParameters();
-                    p.Add("@Username", username);
+                    p.Add("@UserID", Convert.ToInt32(userID));
                     p.Add("@Activity", activity);
 
                     isAllowed = connection.Query<bool>("dbo.spCheckActivity", p, commandType: CommandType.StoredProcedure).FirstOrDefault();
@@ -473,15 +491,16 @@ namespace Student.DataAccess
             return isAllowed;
         }
 
-        private void InsertAccessToken(int userID, string accessToken)
+        private void InsertRefreshToken(int userID, string refreshTokenHash)
         {
             using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(loginAccess)))
             {
                 var p = new DynamicParameters();
                 p.Add("@UserID", userID);
-                p.Add("@AccessToken", accessToken);
+                p.Add("@RefreshToken", refreshTokenHash);
+                p.Add("@ExpDate", GlobalConfig.GetRefreshTokenExpDate());
 
-                connection.Execute("dbo.spToken_Insert", p, commandType: CommandType.StoredProcedure);
+                connection.Execute("dbo.spRefreshToken_Insert", p, commandType: CommandType.StoredProcedure);
             }
         }
 
@@ -494,6 +513,68 @@ namespace Student.DataAccess
 
                 return connection.Query<bool>("dbo.spUser_CheckIfExist", p, commandType: CommandType.StoredProcedure).FirstOrDefault();
             }
+        }
+
+        public void SignOut(string accessToken)
+        {
+            try
+            {
+                Authenticator authenticator = new Authenticator();
+
+                string userID = string.Empty;
+
+                authenticator.VerifyToken(accessToken, ref userID);
+
+                using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(userAccess)))
+                {
+                    var p = new DynamicParameters();
+                    p.Add("@UserID", Convert.ToInt32(userID));
+
+                    connection.Execute("dbo.spUser_SignOut", p, commandType: CommandType.StoredProcedure);
+                }
+            }
+            catch (Exception)
+            {
+               // do nothing
+            }
+        }
+
+        public ResponseModel<long> GetNewAccessToken(string refreshToken, string accessToken)
+        {
+            ResponseModel<long> responseModel = new ResponseModel<long>();
+
+            Authenticator authenticator = new Authenticator();
+            Encryptor encryptor = new Encryptor();
+
+            string hashedRefreshToken = string.Empty;
+
+            string accessTokenUserID = authenticator.GetUserIDFromExpiredToken(accessToken);
+
+            if (int.TryParse(accessTokenUserID, out int userID))
+            {
+                using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(userAccess)))
+                {
+                    var p = new DynamicParameters();
+                    p.Add("@UserID", userID);
+
+                    hashedRefreshToken = connection.Query<string>("dbo.spRefreshToken_Get", p, commandType:
+                        CommandType.StoredProcedure).FirstOrDefault();
+                }
+            }
+
+            if (!string.IsNullOrEmpty(hashedRefreshToken) && encryptor.IsHashValid(refreshToken, hashedRefreshToken))
+            {                
+                responseModel.OutputMessage = encryptor.CreateAccessToken(userID.ToString());
+                responseModel.Model = GlobalConfig.GetAccessTokenExpDate();
+                responseModel.IsSuccess = true;
+            }
+            else // refresh token invalid -> logout
+            {
+                responseModel.OutputMessage = "Session has expired";
+                responseModel.ErrorAction = "[LogOut]";
+            }
+
+            return responseModel;
         }
     }
 }

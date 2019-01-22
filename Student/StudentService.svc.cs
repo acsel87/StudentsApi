@@ -12,13 +12,13 @@ namespace Student
     {
         public StudentService()
         {
-            GlobalConfig.SetConnection(new CsvConnector());
-            //GlobalConfig.SetConnection(new SqlConnector());
+            //GlobalConfig.SetConnection(new CsvConnector());
+            GlobalConfig.SetConnection(new SqlConnector());
         }
 
-        public string CheckConnection()
+        public bool CheckConnection()
         {            
-            return "Connected to service";
+            return true;
         }
 
         public string Login(string username, string password)
@@ -89,7 +89,7 @@ namespace Student
             }
             else
             {
-                responseModel.ErrorMessage = message;
+                responseModel.OutputMessage = message;
             }
 
             return authenticator.ResponseSerializer(responseModel);
@@ -109,7 +109,7 @@ namespace Student
             }
             else
             {
-                responseModel.ErrorMessage = message;
+                responseModel.OutputMessage = message;
             }
 
             return authenticator.ResponseSerializer(responseModel);
@@ -129,28 +129,28 @@ namespace Student
             }
             else
             {
-                responseModel.ErrorMessage = message;
+                responseModel.OutputMessage = message;
                 responseModel.ErrorAction = "[LogOut]";
             }
 
             return authenticator.ResponseSerializer(responseModel);
         }
 
-        public string GetStudentRating(int studentID, int teacherID, string accessToken)
+        public string GetStudentRating(int teacherID, string accessToken)
         {
             Authenticator authenticator = new Authenticator();
 
             ResponseModel<int> responseModel = new ResponseModel<int>();
 
-            string message = string.Empty;
+            string tokenOutput = string.Empty;
 
-            if (authenticator.VerifyToken(accessToken, ref message))
+            if (authenticator.VerifyToken(accessToken, ref tokenOutput))
             {
-                responseModel = GlobalConfig.Connection.GetStudentRating(studentID, teacherID);                
+                responseModel = GlobalConfig.Connection.GetStudentRating(tokenOutput, teacherID);                
             }
             else
             {
-                responseModel.ErrorMessage = message;
+                responseModel.OutputMessage = tokenOutput;
                 responseModel.ErrorAction = "[LogOut]";
             }
 
@@ -163,22 +163,23 @@ namespace Student
 
             ResponseModel<string> responseModel = new ResponseModel<string>();
 
-            string message = string.Empty;
+            string tokenOutput = string.Empty;
+            string activityOutput = string.Empty;
 
-            if (authenticator.VerifyToken(accessToken, ref message))
+            if (authenticator.VerifyToken(accessToken, ref tokenOutput))
             {
-                if (GlobalConfig.Connection.CheckActivity(message, "RateTeacher", ref message))
+                if (GlobalConfig.Connection.CheckActivity(tokenOutput, "RateTeacher", ref activityOutput))
                 {
-                    responseModel = GlobalConfig.Connection.RateTeacher(accessToken, teacherID, rate);
+                    responseModel = GlobalConfig.Connection.RateTeacher(tokenOutput, teacherID, rate);
                 }
                 else
                 {
-                    responseModel.ErrorMessage = message;
+                    responseModel.OutputMessage = activityOutput;
                 }
             }
             else
             {
-                responseModel.ErrorMessage = message;
+                responseModel.OutputMessage = tokenOutput;
                 responseModel.ErrorAction = "[LogOut]";
             }
 
@@ -191,16 +192,17 @@ namespace Student
 
             ResponseModel<string> responseModel = new ResponseModel<string>();
 
-            string message = string.Empty;
+            string tokenOutput = string.Empty;
+            string activityOutput = string.Empty;
             string activity = isNewGrade ? "AddGrade":"EditGrade";
 
-            if (authenticator.VerifyToken(accessToken, ref message) )
+            if (authenticator.VerifyToken(accessToken, ref tokenOutput))
             {
-                if (GlobalConfig.Connection.CheckActivity(message, activity, ref message))
+                if (GlobalConfig.Connection.CheckActivity(tokenOutput, activity, ref activityOutput))
                 {
                     if (isNewGrade)
                     {
-                        responseModel = GlobalConfig.Connection.AddGrade(gradeModel, accessToken);
+                        responseModel = GlobalConfig.Connection.AddGrade(gradeModel, tokenOutput);
                     }
                     else
                     {
@@ -209,14 +211,28 @@ namespace Student
                 }
                 else
                 {
-                    responseModel.ErrorMessage = message;
+                    responseModel.OutputMessage = activityOutput;
                 }
             }
             else
             {
-                responseModel.ErrorMessage = message;
+                responseModel.OutputMessage = tokenOutput;
                 responseModel.ErrorAction = "[LogOut]";
             }
+
+            return authenticator.ResponseSerializer(responseModel);
+        }
+
+        public void SignOut(string accessToken)
+        {
+            GlobalConfig.Connection.SignOut(accessToken);
+        }
+
+        public string GetNewAccessToken(string refreshToken, string accessToken)
+        {
+            Authenticator authenticator = new Authenticator();
+
+            ResponseModel<long> responseModel = GlobalConfig.Connection.GetNewAccessToken(refreshToken, accessToken);
 
             return authenticator.ResponseSerializer(responseModel);
         }

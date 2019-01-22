@@ -3,6 +3,7 @@ using JWT.Builder;
 using Newtonsoft.Json;
 using Student.DataAccess;
 using Student.Models;
+using System;
 using System.Collections.Generic;
 
 namespace Student.Helpers
@@ -14,7 +15,7 @@ namespace Student.Helpers
             return JsonConvert.SerializeObject(responseModel);
         }
 
-        public bool VerifyToken(string accessToken, ref string message)
+        public bool VerifyToken(string accessToken, ref string output)
         {
             try
             {
@@ -23,19 +24,46 @@ namespace Student.Helpers
                     .MustVerifySignature()
                     .Decode<IDictionary<string, string>>(accessToken);
 
-                message = resultedJson["sub"];
+                output = resultedJson["sub"];
                 return true;
             }
             catch (TokenExpiredException)
             {
-                message = "Session has expired";
+                output = "Access expired";
                 return false;
             }
             catch (SignatureVerificationException)
             {
-                message = "Session authentication failed";
+                output = "Session authentication failed";
                 return false;
             }
+            catch (InvalidOperationException ex)
+            {
+                output = ex.Message;
+                return false;
+            }
+        }
+
+        public string GetUserIDFromExpiredToken(string accessToken)
+        {
+            string output = string.Empty;
+
+            try
+            {
+                // should ignore only exp date, but check singature                         
+                var resultedJson = new JwtBuilder()
+                   .WithSecret(GlobalConfig.secretKey)
+                   .DoNotVerifySignature() // unable to validate only token lifetime
+                   .Decode<IDictionary<string, string>>(accessToken);
+
+                output = resultedJson["sub"];
+            }
+            catch (InvalidOperationException ex)
+            {
+                output = ex.Message;
+            }
+
+            return output;
         }
     }
 }

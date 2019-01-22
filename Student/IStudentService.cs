@@ -8,7 +8,7 @@ namespace Student
     public interface IStudentService
     {
         [OperationContract]
-        string CheckConnection();
+        bool CheckConnection();
 
         [OperationContract]
         string GetAccountTypes();
@@ -38,13 +38,18 @@ namespace Student
         string GetGrades(int studentID, int teacherID, string accessToken);
 
         [OperationContract]
-        string GetStudentRating(int studentID, int teacherID, string accessToken);
+        string GetStudentRating(int teacherID, string accessToken);
 
         [OperationContract]
         string RateTeacher(int teacherID, int rate, string accessToken);
 
         [OperationContract]
         string ModifyGrades(bool isNewGrade, GradeModel gradeModel, string accessToken);
-        
+
+        [OperationContract]
+        void SignOut(string accessToken);
+
+        [OperationContract]
+        string GetNewAccessToken(string refreshToken, string accessToken);        
     }
 }
