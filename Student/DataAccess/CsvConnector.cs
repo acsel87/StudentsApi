@@ -337,21 +337,33 @@ namespace Student.DataAccess
                     }
                 }
 
-                string rating =
+                if (rate == 0)
+                {
+                    responseModel.IsSuccess = true;
+                    responseModel.Model = "Teacher unrated";
+                }
+                else if (rate > 0 && rate <= 7)
+                {
+                    string rating =
                         GetNewID(filePath) + csvDelimiter +
                         studentRow[0] + csvDelimiter +
                         teacherID.ToString() + csvDelimiter +
                         rate;
 
-                using (StreamWriter w = File.AppendText(filePath))
-                {
-                    w.WriteLine(rating);
+                    using (StreamWriter w = File.AppendText(filePath))
+                    {
+                        w.WriteLine(rating);
+                    }
+
+                    UpdateTeacherRating(teacherID);
+
+                    responseModel.IsSuccess = true;
+                    responseModel.Model = "Teacher rated";
                 }
-
-                UpdateTeacherRating(teacherID);
-
-                responseModel.IsSuccess = true;
-                responseModel.Model = "Teacher rated";
+                else
+                {
+                    responseModel.OutputMessage = "Rate invalid";
+                }                
             }
             else
             {

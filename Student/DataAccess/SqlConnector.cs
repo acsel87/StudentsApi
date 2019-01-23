@@ -14,7 +14,7 @@ namespace Student.DataAccess
         private const string loginAccess = "LoginAccess";
         private const string signUpAccess = "SignUpAccess";
         private const string resetAccess = "ResetAccess";
-        private const string userAccess = "UserAccess";
+        private const string userAccess = "UserAccess";        
 
         public ResponseModel<List<KeyValuePair<int, string>>> GetAccountTypes()
         {
@@ -22,12 +22,23 @@ namespace Student.DataAccess
 
             List<KeyValuePair<int, string>> accountTypes = new List<KeyValuePair<int, string>>();
 
-            using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(signUpAccess)))
+            try
             {
-                accountTypes = connection.Query<KeyValuePair<int, string>>("dbo.spAccountTypes_Get", commandType: CommandType.StoredProcedure).ToList();
+                using (IDbConnection connection = new System.Data.SqlClient.SqlConnection(GlobalConfig.CnnString(signUpAccess)))
+                {
+                    accountTypes = connection.Query<KeyValuePair<int, string>>("dbo.spAccountTypes_Get", commandType: CommandType.StoredProcedure).ToList();
 
-                responseModel.IsSuccess = true;
-                responseModel.Model = accountTypes;
+                    responseModel.IsSuccess = true;
+                    responseModel.Model = accountTypes;
+                }
+            }
+            catch (System.Data.SqlClient.SqlException)
+            {
+                responseModel.OutputMessage = "Server is down";
+            }
+            catch (Exception e)
+            {
+                responseModel.OutputMessage = e.Message;
             }
 
             return responseModel;
@@ -185,6 +196,10 @@ namespace Student.DataAccess
                         responseModel.OutputMessage = "Invalid user or password";
                     }
                 }
+            }
+            catch (System.Data.SqlClient.SqlException)
+            {
+                responseModel.OutputMessage = "Server is down";
             }
             catch (Exception e)
             {
@@ -350,6 +365,10 @@ namespace Student.DataAccess
                 }
 
                 responseModel.IsSuccess = true;
+            }
+            catch (System.Data.SqlClient.SqlException)
+            {
+                responseModel.OutputMessage = "Server is down";
             }
             catch (Exception e)
             {
